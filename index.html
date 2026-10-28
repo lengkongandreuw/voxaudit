@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vox Social Score - AI-Powered Social Media Audit</title>
-    
+    <meta name="description" content="Vox Social Score by Voxlumedia: an instant, business-first audit of your Instagram or Facebook Page.">
+    <link rel="icon" type="image/png" href="assets/vsllogo.png">
+
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -88,6 +90,15 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
+        .sr-only {
+            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; }
+        }
+
         .cyber-grid-bg {
             background-size: 40px 40px;
             background-image: linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
@@ -109,16 +120,33 @@
 
         const apiKey = ""; 
 
-        // URLs Aset Resmi
-        const MASCOT_URL = "https://raw.githubusercontent.com/lengkongandreuw/voxsocial/main/assets/ryanvox.png";
-        const LOGO_URL = "https://raw.githubusercontent.com/lengkongandreuw/voxsocial/main/assets/vsllogo.png";
+        // URLs Aset Resmi (lokal, ikut di repo ini)
+        const MASCOT_URL = "assets/ryanvox.png";
+        const LOGO_URL = "assets/vsllogo.png";
+
+        // Kunci sesi login demo di localStorage
+        const SESSION_KEY = "voxaudit.session";
+
+        const loadSession = () => {
+            try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; }
+        };
+        const saveSession = (session) => {
+            try {
+                if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+                else localStorage.removeItem(SESSION_KEY);
+            } catch (e) {}
+        };
 
         // --- SISTEM GENERATOR AUDIO SYNTH MEKANIS (Mikro-Interaksi Suara) ---
+        // Satu AudioContext dipakai ulang; browser membatasi jumlah context yang boleh dibuat.
+        let sharedAudioCtx = null;
         const playSynthTick = (frequency = 600, type = 'sine', duration = 0.05, volume = 0.05) => {
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 if (!AudioContext) return;
-                const ctx = new AudioContext();
+                if (!sharedAudioCtx) sharedAudioCtx = new AudioContext();
+                const ctx = sharedAudioCtx;
+                if (ctx.state === 'suspended') ctx.resume();
                 const osc = ctx.createOscillator();
                 const gainNode = ctx.createGain();
                 
@@ -138,7 +166,8 @@
         };
 
         function App() {
-            const [view, setView] = useState('landing'); 
+            const [session, setSession] = useState(loadSession);
+            const [view, setView] = useState('landing');
             const [profileUrl, setProfileUrl] = useState('');
             const [inputError, setInputError] = useState('');
             const [analyzingStep, setAnalyzingStep] = useState(0);
@@ -184,7 +213,11 @@
                 setInputError('');
 
                 const url = profileUrl.trim();
-                if (!url) return;
+                if (!url) {
+                    playSynthTick(150, 'sawtooth', 0.2, 0.08);
+                    setInputError("Please paste your Instagram or Facebook Page link first.");
+                    return;
+                }
 
                 const isUrl = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?(\?.*)?$/.test(url);
                 const isInstagram = url.toLowerCase().includes('instagram.com') || url.toLowerCase().includes('instagr.am');
@@ -301,16 +334,34 @@ Output format must be pure JSON with the following structure without extra markd
                 };
             };
 
+            const handleLogin = (newSession) => {
+                saveSession(newSession);
+                setSession(newSession);
+            };
+
+            const handleLogout = () => {
+                saveSession(null);
+                setSession(null);
+                setView('landing');
+                setProfileUrl('');
+                setAnalysisResults(null);
+            };
+
+            if (!session) {
+                return <LoginSection onLogin={handleLogin} />;
+            }
+
             return (
                 <div className="min-h-screen flex flex-col font-sans bg-[#06021c] text-white relative">
                     <main className="flex-grow flex flex-col relative z-10">
                         {view === 'landing' && (
-                            <LandingSection 
-                                profileUrl={profileUrl} 
-                                setProfileUrl={setProfileUrl} 
-                                handleAnalyze={handleAnalyze} 
+                            <LandingSection
+                                profileUrl={profileUrl}
+                                setProfileUrl={setProfileUrl}
+                                handleAnalyze={handleAnalyze}
                                 inputError={inputError}
                                 setInputError={setInputError}
+                                onLogout={handleLogout}
                             />
                         )}
 
@@ -332,9 +383,113 @@ Output format must be pure JSON with the following structure without extra markd
         }
 
         // ==========================================
+        // 0. LOGIN VIEW (demo: belum terhubung ke penyedia auth sungguhan)
+        // ==========================================
+        function LoginSection({ onLogin }) {
+            const [mode, setMode] = useState('choose');
+            const [email, setEmail] = useState('');
+            const [error, setError] = useState('');
+
+            const handleEmailSubmit = (e) => {
+                e.preventDefault();
+                const value = email.trim();
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                    setError("Please enter a valid email address.");
+                    return;
+                }
+                onLogin({ provider: 'email', email: value });
+            };
+
+            return (
+                <div className="min-h-screen cyber-grid-bg bg-[#06021c] flex items-center justify-center px-4 py-12">
+                    <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+                        <div className="text-center lg:text-left space-y-5">
+                            <div className="flex items-center justify-center lg:justify-start gap-3">
+                                <img src={LOGO_URL} alt="" className="w-10 h-10 object-contain" />
+                                <div className="leading-tight text-left">
+                                    <p className="font-black tracking-tight">VOXAUDIT</p>
+                                    <p className="text-[10px] font-bold text-white/50 tracking-widest">BY VOXLUMEDIA</p>
+                                </div>
+                            </div>
+                            <span className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] sm:text-xs font-black tracking-widest text-[#a882ff] uppercase">
+                                <i className="fa-solid fa-bolt text-[#ff7b1a]" aria-hidden="true"></i>
+                                AI-Powered Social Media Audit
+                            </span>
+                            <h1 className="text-4xl sm:text-6xl font-black uppercase leading-[1.0] tracking-tighter">
+                                Audit.<br />Optimize.<br /><span className="text-[#ff7b1a]">Grow Sales.</span>
+                            </h1>
+                            <p className="text-white/80 text-sm sm:text-lg max-w-[520px] mx-auto lg:mx-0 font-medium leading-relaxed">
+                                Score your Instagram or Facebook Page and get clear, business-first recommendations to turn followers into customers.
+                            </p>
+                            <p className="text-xs font-bold text-white/60">
+                                <i className="fa-solid fa-circle-check text-[#ff7b1a] mr-1" aria-hidden="true"></i>
+                                Profile Clarity • Trust Signals • Content Quality
+                            </p>
+                        </div>
+
+                        <div className="solid-glassmorphic rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6 w-full max-w-md mx-auto">
+                            <div>
+                                <h2 className="text-2xl font-black">Welcome Back</h2>
+                                <p className="text-white/60 text-sm font-medium mt-1">Sign in to access your social media audits and reports.</p>
+                            </div>
+
+                            {mode === 'choose' ? (
+                                <div className="space-y-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => onLogin({ provider: 'google', email: null })}
+                                        className="w-full bg-white text-[#06021c] font-black py-3.5 rounded-xl flex items-center justify-center gap-3 hover:bg-white/90 transition"
+                                    >
+                                        <i className="fa-brands fa-google" aria-hidden="true"></i> Continue with Google
+                                    </button>
+                                    <div className="flex items-center gap-3 text-[10px] font-black text-white/40">
+                                        <span className="flex-1 h-px bg-white/10"></span>OR<span className="flex-1 h-px bg-white/10"></span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setMode('email')}
+                                        className="w-full border border-white/20 hover:border-white bg-white/5 font-black py-3.5 rounded-xl flex items-center justify-center gap-3 transition"
+                                    >
+                                        <i className="fa-solid fa-envelope" aria-hidden="true"></i> Continue with Email
+                                    </button>
+                                </div>
+                            ) : (
+                                <form onSubmit={handleEmailSubmit} noValidate className="space-y-3">
+                                    <label htmlFor="login-email" className="text-xs font-bold text-white/70 block">Email address</label>
+                                    <input
+                                        id="login-email"
+                                        type="email"
+                                        autoComplete="email"
+                                        value={email}
+                                        onChange={(e) => { setError(''); setEmail(e.target.value); }}
+                                        aria-invalid={!!error}
+                                        aria-describedby={error ? 'login-error' : undefined}
+                                        placeholder="you@business.com"
+                                        className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold"
+                                    />
+                                    {error && <p id="login-error" role="alert" className="text-rose-300 text-sm font-semibold">{error}</p>}
+                                    <button type="submit" className="w-full bg-[#ff7b1a] hover:bg-[#e06200] font-black py-3.5 rounded-xl transition">
+                                        Continue &rarr;
+                                    </button>
+                                    <button type="button" onClick={() => { setMode('choose'); setError(''); }} className="w-full text-xs font-bold text-white/60 hover:text-white py-2">
+                                        &larr; Other sign-in options
+                                    </button>
+                                </form>
+                            )}
+
+                            <p className="text-[11px] text-white/40 font-medium text-center">
+                                By continuing, you agree to Voxlumedia™ Terms of Service and Privacy Policy.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==========================================
         // 1. LANDING VIEW (Aesthetic Looping & Interactive)
         // ==========================================
-        function LandingSection({ profileUrl, setProfileUrl, handleAnalyze, inputError, setInputError }) {
+        function LandingSection({ profileUrl, setProfileUrl, handleAnalyze, inputError, setInputError, onLogout }) {
             const mascotRef = useRef(null);
             const [mascotBubbleText, setMascotBubbleText] = useState("Hey there! Ready to grade your profile?");
             const [bubbleClickCount, setBubbleClickCount] = useState(0);
@@ -422,11 +577,16 @@ Output format must be pure JSON with the following structure without extra markd
                             <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center">
                                 <img src={LOGO_URL} className="w-full h-full object-contain" alt="Logo" />
                             </div>
-                            VOXLUMEDIA
+                            <span className="hidden sm:inline">VOXLUMEDIA</span>
                         </div>
-                        <a href="https://voxlumedia.com" target="_blank" rel="noopener noreferrer" className="bg-[#191046] border border-white/10 rounded-full px-5 py-2.5 text-xs sm:text-sm font-extrabold hover:bg-white hover:text-black transition-all active:scale-95 duration-200">
-                            Book Free Consultation &rarr;
-                        </a>
+                        <div className="flex items-center gap-2">
+                            <a href="https://voxlumedia.com" target="_blank" rel="noopener noreferrer" className="bg-[#191046] border border-white/10 rounded-full px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-extrabold hover:bg-white hover:text-black transition-all active:scale-95 duration-200">
+                                Book Free Consultation &rarr;
+                            </a>
+                            <button type="button" onClick={onLogout} aria-label="Log out" title="Log out" className="w-10 h-10 rounded-full bg-[#191046] border border-white/10 flex items-center justify-center hover:bg-white hover:text-black transition-all">
+                                <i className="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+                            </button>
+                        </div>
                     </header>
 
                     {/* Central Hero Body */}
@@ -437,32 +597,34 @@ Output format must be pure JSON with the following structure without extra markd
                             <div className="lg:col-span-5 flex flex-col items-center justify-center relative">
                                 
                                 {/* Mascot Speech Bubble (Gamifikasi / Interaksi) */}
-                                <div 
+                                <button
+                                    type="button"
                                     onClick={handleMascotClick}
-                                    className="absolute top-[-40px] z-50 bg-[#0c0735]/95 text-white px-4 py-3 rounded-2xl rounded-bl-none shadow-2xl border-2 border-[#ff7b1a] max-w-[220px] text-xs font-bold cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 select-none"
+                                    aria-label={`Ryan Vox says: ${mascotBubbleText} Tap for another tip.`}
+                                    className="text-left absolute top-[-40px] z-50 bg-[#0c0735]/95 text-white px-4 py-3 rounded-2xl rounded-bl-none shadow-2xl border-2 border-[#ff7b1a] max-w-[220px] text-xs font-bold cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 select-none"
                                 >
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-[10px] text-[#ff7b1a] font-extrabold uppercase">Ryan Vox</span>
                                         <span className="text-[8px] bg-white/10 text-white/50 px-1 rounded">TAP ME</span>
                                     </div>
-                                    <p className="leading-snug text-white/95">{mascotBubbleText}</p>
-                                </div>
+                                    <p className="leading-snug text-white/95" aria-live="polite">{mascotBubbleText}</p>
+                                </button>
 
-                                <div 
+                                <div
                                     ref={mascotRef}
                                     onClick={handleMascotClick}
                                     className="w-full h-auto transition-transform duration-300 ease-out flex justify-center relative z-20 cursor-pointer"
                                     title="Click me to talk!"
                                 >
-                                    <img 
-                                        src={MASCOT_URL} 
-                                        alt="Vox Mascot" 
+                                    <img
+                                        src={MASCOT_URL}
+                                        alt="Ryan Vox, the Voxlumedia robot mascot"
                                         className="w-[85%] sm:w-[65%] lg:w-[100%] max-w-[500px] h-auto object-contain drop-shadow-2xl animate-float hover:brightness-110 transition-all"
                                     />
                                 </div>
 
-                                {/* Floating Glass Card: "AI-POWERED INSIGHTS" */}
-                                <div className="absolute bottom-[2%] left-[-2%] sm:left-[5%] lg:left-[-5%] z-40 max-w-[240px] solid-glassmorphic p-4 rounded-2xl shadow-2xl flex gap-3 animate-float" style={{animationDelay: '1.5s'}}>
+                                {/* Floating Glass Card: "AI-POWERED INSIGHTS" — di layar kecil diletakkan di bawah maskot agar tidak menimpa gambar */}
+                                <div className="relative mt-4 lg:mt-0 lg:absolute lg:bottom-[2%] lg:left-[-5%] z-40 max-w-[280px] lg:max-w-[240px] bg-[#0c0735]/90 lg:bg-white/[0.04] border border-white/10 backdrop-blur-md p-4 rounded-2xl shadow-2xl flex gap-3 animate-float" style={{animationDelay: '1.5s'}}>
                                     <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-cyber-neonBlue shrink-0">
                                         <i className="fa-solid fa-brain text-lg"></i>
                                     </div>
@@ -495,24 +657,29 @@ Output format must be pure JSON with the following structure without extra markd
                                 </div>
 
                                 {/* Form Input dengan panel gamifikasi baru di bawahnya */}
-                                <form onSubmit={handleAnalyze} className="relative w-full max-w-[650px] mx-auto lg:mx-0 space-y-4 pt-2">
+                                <form onSubmit={handleAnalyze} noValidate className="relative w-full max-w-[650px] mx-auto lg:mx-0 space-y-4 pt-2">
                                     
                                     {/* Kolom input utama */}
                                     <div className="flex flex-col sm:flex-row gap-2.5 bg-white/5 p-2 rounded-2xl border border-white/15 backdrop-blur-xl shadow-2xl relative transition-all duration-300 focus-within:border-[#ff7b1a]">
                                         <div className="relative flex-grow flex items-center px-4">
-                                            <span className={`transition-colors duration-300 text-xl font-black mr-2 font-mono ${hasProtocolOrSocial ? 'text-[#ff7b1a]' : 'text-white/40'}`}>@</span>
-                                            <input 
-                                                type="url" 
-                                                required
+                                            <span aria-hidden="true" className={`transition-colors duration-300 text-xl font-black mr-2 font-mono ${hasProtocolOrSocial ? 'text-[#ff7b1a]' : 'text-white/40'}`}>@</span>
+                                            <label htmlFor="profile-url" className="sr-only">Instagram or Facebook Page URL</label>
+                                            <input
+                                                id="profile-url"
+                                                type="url"
+                                                inputMode="url"
+                                                autoComplete="url"
                                                 maxLength={100}
+                                                aria-invalid={!!inputError}
+                                                aria-describedby={inputError ? 'profile-url-error' : 'profile-url-hint'}
                                                 value={profileUrl}
                                                 onKeyDown={() => playSynthTick(1200, 'sine', 0.03, 0.015)} // Klik mekanis keyboard
                                                 onChange={(e) => {
                                                     setInputError('');
                                                     setProfileUrl(e.target.value);
                                                 }}
-                                                placeholder="Enter Instagram or Facebook Page URL"
-                                                className="w-full bg-transparent text-white font-bold placeholder-white/40 focus:outline-none text-[15px] sm:text-base py-3"
+                                                placeholder="instagram.com/yourbusiness"
+                                                className="w-full min-w-0 bg-transparent text-white font-bold placeholder-white/40 focus:outline-none text-[15px] sm:text-base py-3"
                                             />
                                         </div>
                                         <button 
@@ -546,8 +713,9 @@ Output format must be pure JSON with the following structure without extra markd
 
                                             {/* Modul neural switch yang dapat diklik */}
                                             <div className="md:col-span-8 flex flex-wrap gap-2 justify-start md:justify-end">
-                                                <button 
+                                                <button
                                                     type="button"
+                                                    aria-pressed={neuralNodes.bioScan}
                                                     onClick={() => toggleNeuralNode('bioScan')}
                                                     className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold flex items-center gap-2 transition-all ${
                                                         neuralNodes.bioScan 
@@ -557,8 +725,9 @@ Output format must be pure JSON with the following structure without extra markd
                                                 >
                                                     <i className="fa-solid fa-fingerprint"></i> Bio Metadata Scan
                                                 </button>
-                                                <button 
+                                                <button
                                                     type="button"
+                                                    aria-pressed={neuralNodes.postDensity}
                                                     onClick={() => toggleNeuralNode('postDensity')}
                                                     className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold flex items-center gap-2 transition-all ${
                                                         neuralNodes.postDensity 
@@ -568,8 +737,9 @@ Output format must be pure JSON with the following structure without extra markd
                                                 >
                                                     <i className="fa-solid fa-cubes"></i> Post Density Audit
                                                 </button>
-                                                <button 
+                                                <button
                                                     type="button"
+                                                    aria-pressed={neuralNodes.ctaVerification}
                                                     onClick={() => toggleNeuralNode('ctaVerification')}
                                                     className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold flex items-center gap-2 transition-all ${
                                                         neuralNodes.ctaVerification 
@@ -607,14 +777,14 @@ Output format must be pure JSON with the following structure without extra markd
                                     </div>
 
                                     {/* Character counter / Instagram constraint alert */}
-                                    <div className="flex justify-between items-center text-[11px] text-white/40 font-semibold px-2">
-                                        <span>Optimized for Instagram & Facebook Pages</span>
-                                        <span>{profileUrl.length}/100 characters</span>
+                                    <div className="flex justify-between items-center gap-3 text-[11px] text-white/40 font-semibold px-2">
+                                        <span id="profile-url-hint">Optimized for Instagram & Facebook Pages</span>
+                                        <span className="whitespace-nowrap">{profileUrl.length}/100 characters</span>
                                     </div>
 
                                     {/* Error Notification */}
                                     {inputError && (
-                                        <div className="bg-rose-500/20 border border-rose-500/40 text-rose-300 px-4 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 mt-2 w-max mx-auto lg:mx-0 animate-fade-in-up">
+                                        <div id="profile-url-error" role="alert" className="bg-rose-500/20 border border-rose-500/40 text-rose-300 px-4 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 mt-2 max-w-full w-fit mx-auto lg:mx-0 text-left animate-fade-in-up">
                                             <i className="fa-solid fa-circle-exclamation text-rose-400"></i>
                                             <span>{inputError}</span>
                                         </div>
@@ -923,12 +1093,12 @@ Output format must be pure JSON with the following structure without extra markd
                                     
                                     <form onSubmit={handleLeadSubmit} className="space-y-4 pt-4 text-left">
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <input type="text" required placeholder="Full Name" value={leadData.name} onChange={(e) => setLeadData({...leadData, name: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
-                                            <input type="email" required placeholder="Business Email" value={leadData.email} onChange={(e) => setLeadData({...leadData, email: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
+                                            <input type="text" required aria-label="Full Name" placeholder="Full Name" value={leadData.name} onChange={(e) => setLeadData({...leadData, name: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
+                                            <input type="email" required aria-label="Business Email" placeholder="Business Email" value={leadData.email} onChange={(e) => setLeadData({...leadData, email: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <input type="tel" required placeholder="Phone Number" value={leadData.phone} onChange={(e) => setLeadData({...leadData, phone: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
-                                            <input type="text" required placeholder="Company Name" value={leadData.company} onChange={(e) => setLeadData({...leadData, company: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
+                                            <input type="tel" required aria-label="Phone Number" placeholder="Phone Number" value={leadData.phone} onChange={(e) => setLeadData({...leadData, phone: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
+                                            <input type="text" required aria-label="Company Name" placeholder="Company Name" value={leadData.company} onChange={(e) => setLeadData({...leadData, company: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
                                         </div>
                                         <button type="submit" className="w-full bg-[#ff7b1a] hover:bg-[#e06200] text-white font-black py-4 rounded-xl transition duration-300 shadow-md">
                                             Send Me The Report &rarr;
