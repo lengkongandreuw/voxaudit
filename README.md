@@ -2,6 +2,8 @@
 
 Duplikat **Vox Social Score** (voxaudit.voxlumedia.com) untuk perbaikan, berbasis kode `voxsocial`.
 
+**Live:** https://lengkongandreuw.github.io/voxaudit/
+
 Satu file `index.html` (React 18 + Tailwind CDN), tanpa build step. Buka langsung di browser atau sajikan folder ini lewat server statis / GitHub Pages.
 
 ## Yang diperbaiki dibanding versi live
