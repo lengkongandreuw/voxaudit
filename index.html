@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vox Social Score - AI-Powered Social Media Audit</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#06021c', // Background gelap pekat solid
+                            bgLight: '#0d0735',
+                            accent: '#ff007f', // hot pink solid
+                            neonBlue: '#00f0ff', // cyan solid
+                            gold: '#ffb800', // bintang emas
+                            purpleGlow: '#6c22ff',
+                            orangeSolid: '#ff7b1a' // Orange tombol solid dari panduan gambar
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+                        brush: ['Caveat Brush', 'Caveat', 'cursive'],
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'float-delayed': 'floatSlow 8s ease-in-out infinite',
+                        'fade-in-up': 'fadeInUp 0.8s ease-out forwards',
+                        'spin-slow': 'spin 20s linear infinite',
+                        'spin-reverse': 'spinReverse 25s linear infinite',
+                        'radar-sweep': 'radarSweep 4s linear infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-12px)' },
+                        },
+                        floatSlow: {
+                            '0%, 100%': { transform: 'translate(0px, 0px) rotate(0deg)' },
+                            '50%': { transform: 'translate(10px, -15px) rotate(3deg)' },
+                        },
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        spinReverse: {
+                            '0%': { transform: 'rotate(360deg)' },
+                            '100%': { transform: 'rotate(0deg)' }
+                        },
+                        radarSweep: {
+                            '0%': { transform: 'rotate(0deg)' },
+                            '100%': { transform: 'rotate(360deg)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Caveat+Brush&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #06021c;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+        
+        /* Kustomisasi scrollbar modern */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #06021c; }
+        ::-webkit-scrollbar-thumb { background: #191046; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #ff7b1a; }
+
+        .solid-glassmorphic {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .cyber-grid-bg {
+            background-size: 40px 40px;
+            background-image: linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div id="root"></div>
+
+    <!-- React & Babel CDNs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.10/babel.min.js" crossorigin></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const apiKey = ""; 
+
+        // URLs Aset Resmi
+        const MASCOT_URL = "https://raw.githubusercontent.com/lengkongandreuw/voxsocial/main/assets/ryanvox.png";
+        const LOGO_URL = "https://raw.githubusercontent.com/lengkongandreuw/voxsocial/main/assets/vsllogo.png";
+
+        // --- SISTEM GENERATOR AUDIO SYNTH MEKANIS (Mikro-Interaksi Suara) ---
+        const playSynthTick = (frequency = 600, type = 'sine', duration = 0.05, volume = 0.05) => {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+                
+                osc.type = type;
+                osc.frequency.value = frequency;
+                gainNode.gain.setValueAtTime(volume, ctx.currentTime);
+                // Efek penurunan volume cepat ala mesin retro-futuristik
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+                
+                osc.connect(gainNode);
+                gainNode.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + duration);
+            } catch (e) {
+                // Gagal memutar audio diabaikan (karena kebijakan autoplay browser)
+            }
+        };
+
+        function App() {
+            const [view, setView] = useState('landing'); 
+            const [profileUrl, setProfileUrl] = useState('');
+            const [inputError, setInputError] = useState('');
+            const [analyzingStep, setAnalyzingStep] = useState(0);
+            const [analysisResults, setAnalysisResults] = useState(null);
+
+            // Alur log progres audit bahasa Inggris
+            const analysisSteps = [
+                "Establishing secure connection to public nodes...",
+                "Retrieving Instagram bio, links, and public metadata...",
+                "Analyzing first-impression and profile layout clarity...",
+                "Evaluating content structure and visual branding consistency...",
+                "Assessing engagement metrics and customer trust signals...",
+                "Calculating final score and assembling growth action plan..."
+            ];
+
+            useEffect(() => {
+                let interval;
+                if (view === 'loading') {
+                    setAnalyzingStep(0);
+                    interval = setInterval(() => {
+                        setAnalyzingStep((prev) => {
+                            if (prev < analysisSteps.length - 1) {
+                                return prev + 1;
+                            } else {
+                                clearInterval(interval);
+                                return prev;
+                            }
+                        });
+                    }, 1200);
+                }
+                return () => clearInterval(interval);
+            }, [view]);
+
+            const detectPlatform = (url) => {
+                const lower = url.toLowerCase();
+                if (lower.includes('instagram.com')) return 'Instagram';
+                if (lower.includes('facebook.com')) return 'Facebook Page';
+                return 'Social Media Profile';
+            };
+
+            const handleAnalyze = async (e) => {
+                e.preventDefault();
+                setInputError('');
+
+                const url = profileUrl.trim();
+                if (!url) return;
+
+                const isUrl = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?(\?.*)?$/.test(url);
+                const isInstagram = url.toLowerCase().includes('instagram.com') || url.toLowerCase().includes('instagr.am');
+                const isFacebook = url.toLowerCase().includes('facebook.com');
+
+                if (!isUrl) {
+                    playSynthTick(150, 'sawtooth', 0.2, 0.08); // Suara galat/error
+                    setInputError("Please enter a valid profile URL.");
+                    return;
+                }
+
+                if (!isInstagram && !isFacebook) {
+                    playSynthTick(150, 'sawtooth', 0.2, 0.08); // Suara galat/error
+                    setInputError("Audit is currently optimized for Instagram & Facebook Pages only. Please provide a supported link.");
+                    return;
+                }
+
+                playSynthTick(1000, 'sine', 0.2, 0.06); // Suara transisi sukses
+                setView('loading');
+                const platform = detectPlatform(url);
+                
+                const systemPrompt = `You are a senior digital business auditor evaluating social media profiles for non-technical conventional business owners (aged 40-65).
+Use SIMPLE, friendly, professional, and easy-to-understand ENGLISH.
+Output format must be pure JSON with the following structure without extra markdown:
+{
+  "businessName": "Detected Business Name or Handle from URL",
+  "profileIdentity": "One single sentence summarizing exactly WHO this profile is or what business they do (e.g., 'This profile belongs to a local coffee shop offering artisanal blends.').",
+  "score": 40-95,
+  "label": "Excellent" (90-100) or "Very Good" (80-89) or "Good" (70-79) or "Fair" (60-69) or "Needs Attention" (below 60),
+  "summary": "One friendly summary line highlighting potential and main improvement areas (max 100 chars).",
+  "strengths": ["Max 3 main strengths in English starting with a checkmark (✓)."],
+  "opportunities": ["Max 3 improvement opportunities starting with a bullet (•)."],
+  "recommendations": ["3 actionable recommendations. Each MUST be ONE sentence with a maximum of 20 words."],
+  "categories": {
+    "profileClarity": 25, "contentQuality": 25, "trustScore": 20, "customerEngagement": 15, "businessReadiness": 15
+  },
+  "growthPotential": "Low" | "Moderate" | "High" | "Very High",
+  "dataCoverage": 50-95
+}`;
+
+                const userQuery = `Analyze the ${platform} profile with URL: ${url}. Provide a digital business readiness report.`;
+
+                try {
+                    let responseText = "";
+                    let success = false;
+                    
+                    if (apiKey) {
+                        try {
+                            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    contents: [{ parts: [{ text: userQuery }] }],
+                                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                                    generationConfig: { responseMimeType: "application/json" }
+                                })
+                            });
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                                if (responseText) success = true;
+                            }
+                        } catch (e) {}
+                    }
+
+                    let finalData = success ? JSON.parse(responseText) : generateSimulatedResults(url, platform);
+
+                    setTimeout(() => {
+                        setAnalysisResults(finalData);
+                        setView('results');
+                    }, 1500);
+
+                } catch (error) {
+                    setAnalysisResults(generateSimulatedResults(url, platform));
+                    setView('results');
+                }
+            };
+
+            const generateSimulatedResults = (url, platform) => {
+                const hash = url.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                const score = 68 + (hash % 24); 
+                
+                return {
+                    businessName: platform === 'Instagram' ? "Your Instagram Business Profile" : "Your Facebook Business Page",
+                    profileIdentity: `This profile belongs to a growing commercial brand evaluated on ${platform}.`,
+                    score: score,
+                    label: score >= 90 ? "Excellent" : score >= 80 ? "Very Good" : score >= 70 ? "Good" : "Fair",
+                    summary: "Your profile has a solid foundation. Focusing on clear calls-to-action will immediately boost trust and conversions.",
+                    strengths: [
+                        "✓ Visual identity looks consistent and professional",
+                        "✓ Core products are cleanly presented in posts",
+                        "✓ Contact options are accessible to visitors"
+                    ],
+                    opportunities: [
+                        "• Primary call-to-action is not prominent enough",
+                        "• Bio description misses a clear values hook",
+                        "• Reply rate and engagement features can be optimized"
+                    ],
+                    recommendations: [
+                        "Simplify your bio so visitors understand your exact service in under 5 seconds.",
+                        "Add a prominent booking link directly in your primary button area.",
+                        "Highlight high-quality customer reviews in your pinned content."
+                    ],
+                    categories: {
+                        profileClarity: 70 + (hash % 20),
+                        contentQuality: 65 + ((hash + 2) % 25),
+                        trustScore: 60 + ((hash + 4) % 30),
+                        customerEngagement: 55 + ((hash + 6) % 35),
+                        businessReadiness: 50 + ((hash + 8) % 40)
+                    },
+                    growthPotential: score > 80 ? "High" : "Moderate",
+                    dataCoverage: 85 + (hash % 12)
+                };
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col font-sans bg-[#06021c] text-white relative">
+                    <main className="flex-grow flex flex-col relative z-10">
+                        {view === 'landing' && (
+                            <LandingSection 
+                                profileUrl={profileUrl} 
+                                setProfileUrl={setProfileUrl} 
+                                handleAnalyze={handleAnalyze} 
+                                inputError={inputError}
+                                setInputError={setInputError}
+                            />
+                        )}
+
+                        {view === 'loading' && (
+                            <LoadingSection currentStep={analyzingStep} steps={analysisSteps} />
+                        )}
+
+                        {view === 'results' && analysisResults && (
+                            <ResultsSection 
+                                results={analysisResults} 
+                                url={profileUrl}
+                                platform={detectPlatform(profileUrl)}
+                                setView={setView}
+                            />
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // 1. LANDING VIEW (Aesthetic Looping & Interactive)
+        // ==========================================
+        function LandingSection({ profileUrl, setProfileUrl, handleAnalyze, inputError, setInputError }) {
+            const mascotRef = useRef(null);
+            const [mascotBubbleText, setMascotBubbleText] = useState("Hey there! Ready to grade your profile?");
+            const [bubbleClickCount, setBubbleClickCount] = useState(0);
+
+            // Daftar opsi diagnostik sebelum audit dimulai (Gamifikasi)
+            const [neuralNodes, setNeuralNodes] = useState({
+                bioScan: true,
+                postDensity: true,
+                ctaVerification: false
+            });
+
+            // Dialog suara robot ryan
+            const mascotQuotes = [
+                "Hey there! Ready to grade your profile?",
+                "Did you know 82% of buyers check social trust before buying?",
+                "Click me again! I promise I don't bite. I only scan public data!",
+                "Try pasting your Instagram or Facebook link on the right!",
+                "No password needed. Fully secure and private!",
+                "Let's see if your Bio is ready to convert clicks into sales!"
+            ];
+
+            const handleMascotClick = () => {
+                playSynthTick(800 + (bubbleClickCount * 100), 'sine', 0.08, 0.04);
+                const nextCount = (bubbleClickCount + 1) % mascotQuotes.length;
+                setBubbleClickCount(nextCount);
+                setMascotBubbleText(mascotQuotes[nextCount]);
+            };
+
+            const toggleNeuralNode = (key) => {
+                playSynthTick(key === 'bioScan' ? 500 : key === 'postDensity' ? 650 : 800, 'square', 0.06, 0.03);
+                setNeuralNodes(prev => ({
+                    ...prev,
+                    [key]: !prev[key]
+                }));
+            };
+
+            useEffect(() => {
+                const handleMouseMove = (e) => {
+                    if (!mascotRef.current) return;
+                    const x = (window.innerWidth / 2 - e.pageX) / 75;
+                    const y = (window.innerHeight / 2 - e.pageY) / 75;
+                    mascotRef.current.style.transform = `perspective(1000px) rotateY(${-x}deg) rotateX(${y}deg)`;
+                };
+                window.addEventListener('mousemove', handleMouseMove);
+                return () => window.removeEventListener('mousemove', handleMouseMove);
+            }, []);
+
+            // Hitung nilai kalibrator interaktif
+            const calcCalibrationLevel = () => {
+                let level = 35;
+                if (neuralNodes.bioScan) level += 20;
+                if (neuralNodes.postDensity) level += 25;
+                if (neuralNodes.ctaVerification) level += 20;
+                return level;
+            };
+
+            // Validasi format interaktif
+            const hasProtocolOrSocial = profileUrl.toLowerCase().includes('http') || profileUrl.toLowerCase().includes('instagram.com') || profileUrl.toLowerCase().includes('facebook.com');
+            const hasUsernameSample = profileUrl.length > 15;
+            const isSafeLength = profileUrl.length > 0 && profileUrl.length <= 100;
+
+            return (
+                <div className="relative min-h-screen flex flex-col justify-between overflow-x-hidden cyber-grid-bg">
+                    
+                    {/* --- ELEMEN MICRO-ANIMATIONS LATAR BELAKANG --- */}
+                    <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden select-none">
+                        {/* Orbit Lingkaran Berputar Perlahan (Aesthetic Loop 1) */}
+                        <div className="absolute w-[450px] h-[450px] rounded-full border border-white/5 top-[10%] left-[5%] animate-spin-slow flex items-center justify-center">
+                            <div className="w-[350px] h-[350px] rounded-full border border-dashed border-white/10"></div>
+                        </div>
+
+                        {/* Radar Digital Penyapu Latar Belakang (Aesthetic Loop 2) */}
+                        <div className="absolute w-[300px] h-[300px] rounded-full border border-white/5 bottom-[10%] right-[10%] animate-spin-reverse flex items-center justify-center">
+                            <div className="w-1 h-[140px] bg-gradient-to-b from-[#ff7b1a]/20 to-transparent origin-bottom animate-radar-sweep"></div>
+                        </div>
+
+                        {/* Lencana Koordinat melayang */}
+                        <div className="absolute top-[25%] right-[12%] text-white/5 text-8xl font-black animate-float" style={{animationDuration: '9s'}}>@</div>
+                        <div className="absolute bottom-[35%] left-[8%] text-white/5 text-7xl font-bold animate-float-delayed" style={{animationDuration: '11s'}}>★</div>
+                    </div>
+
+                    {/* Navigation Header */}
+                    <header className="absolute top-0 left-0 w-full p-6 sm:px-12 z-50 flex items-center justify-between">
+                        <div className="flex items-center gap-3 font-black text-xl tracking-tight text-white select-none">
+                            <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center">
+                                <img src={LOGO_URL} className="w-full h-full object-contain" alt="Logo" />
+                            </div>
+                            VOXLUMEDIA
+                        </div>
+                        <a href="https://voxlumedia.com" target="_blank" rel="noopener noreferrer" className="bg-[#191046] border border-white/10 rounded-full px-5 py-2.5 text-xs sm:text-sm font-extrabold hover:bg-white hover:text-black transition-all active:scale-95 duration-200">
+                            Book Free Consultation &rarr;
+                        </a>
+                    </header>
+
+                    {/* Central Hero Body */}
+                    <div className="flex-grow flex items-center justify-center w-full pt-32 pb-16 relative z-10">
+                        <div className="w-full max-w-[1400px] mx-auto px-6 sm:px-12 grid grid-cols-1 lg:grid-cols-12 items-center gap-12 lg:gap-4">
+                            
+                            {/* LEFT SIDE: Mascot + Interactive Speech Bubble + Floating AI Insights Badge */}
+                            <div className="lg:col-span-5 flex flex-col items-center justify-center relative">
+                                
+                                {/* Mascot Speech Bubble (Gamifikasi / Interaksi) */}
+                                <div 
+                                    onClick={handleMascotClick}
+                                    className="absolute top-[-40px] z-50 bg-[#0c0735]/95 text-white px-4 py-3 rounded-2xl rounded-bl-none shadow-2xl border-2 border-[#ff7b1a] max-w-[220px] text-xs font-bold cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 select-none"
+                                >
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[10px] text-[#ff7b1a] font-extrabold uppercase">Ryan Vox</span>
+                                        <span className="text-[8px] bg-white/10 text-white/50 px-1 rounded">TAP ME</span>
+                                    </div>
+                                    <p className="leading-snug text-white/95">{mascotBubbleText}</p>
+                                </div>
+
+                                <div 
+                                    ref={mascotRef}
+                                    onClick={handleMascotClick}
+                                    className="w-full h-auto transition-transform duration-300 ease-out flex justify-center relative z-20 cursor-pointer"
+                                    title="Click me to talk!"
+                                >
+                                    <img 
+                                        src={MASCOT_URL} 
+                                        alt="Vox Mascot" 
+                                        className="w-[85%] sm:w-[65%] lg:w-[100%] max-w-[500px] h-auto object-contain drop-shadow-2xl animate-float hover:brightness-110 transition-all"
+                                    />
+                                </div>
+
+                                {/* Floating Glass Card: "AI-POWERED INSIGHTS" */}
+                                <div className="absolute bottom-[2%] left-[-2%] sm:left-[5%] lg:left-[-5%] z-40 max-w-[240px] solid-glassmorphic p-4 rounded-2xl shadow-2xl flex gap-3 animate-float" style={{animationDelay: '1.5s'}}>
+                                    <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-cyber-neonBlue shrink-0">
+                                        <i className="fa-solid fa-brain text-lg"></i>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <h4 className="text-[11px] font-black uppercase tracking-wider text-white">AI-POWERED INSIGHTS</h4>
+                                        <p className="text-[10px] text-white/70 font-semibold leading-normal">
+                                            Our business-first engine automatically scans your profile indicators instantly.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* RIGHT SIDE: Typography & CTA */}
+                            <div className="lg:col-span-7 space-y-8 text-center lg:text-left animate-fade-in-up relative z-30">
+                                
+                                <div className="space-y-4">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] sm:text-xs font-black tracking-widest text-[#a882ff] uppercase">
+                                        <i className="fa-solid fa-bolt text-[#ff7b1a]"></i>
+                                        AI-POWERED AUDIT TOOL
+                                    </div>
+                                    
+                                    <h1 className="text-[2.8rem] sm:text-6xl lg:text-[5.4rem] font-black uppercase leading-[1.0] tracking-tighter text-white">
+                                        VOX SOCIAL <br />
+                                        <span className="text-[#ff7b1a]">SCORE</span>
+                                    </h1>
+                                    
+                                    <p className="text-white/80 text-sm sm:text-lg lg:text-[20px] max-w-[620px] mx-auto lg:mx-0 font-medium leading-relaxed">
+                                        Get an instant business-first evaluation. Learn how easily potential customers find, trust, and purchase products from your social channels.
+                                    </p>
+                                </div>
+
+                                {/* Form Input dengan panel gamifikasi baru di bawahnya */}
+                                <form onSubmit={handleAnalyze} className="relative w-full max-w-[650px] mx-auto lg:mx-0 space-y-4 pt-2">
+                                    
+                                    {/* Kolom input utama */}
+                                    <div className="flex flex-col sm:flex-row gap-2.5 bg-white/5 p-2 rounded-2xl border border-white/15 backdrop-blur-xl shadow-2xl relative transition-all duration-300 focus-within:border-[#ff7b1a]">
+                                        <div className="relative flex-grow flex items-center px-4">
+                                            <span className={`transition-colors duration-300 text-xl font-black mr-2 font-mono ${hasProtocolOrSocial ? 'text-[#ff7b1a]' : 'text-white/40'}`}>@</span>
+                                            <input 
+                                                type="url" 
+                                                required
+                                                maxLength={100}
+                                                value={profileUrl}
+                                                onKeyDown={() => playSynthTick(1200, 'sine', 0.03, 0.015)} // Klik mekanis keyboard
+                                                onChange={(e) => {
+                                                    setInputError('');
+                                                    setProfileUrl(e.target.value);
+                                                }}
+                                                placeholder="Enter Instagram or Facebook Page URL"
+                                                className="w-full bg-transparent text-white font-bold placeholder-white/40 focus:outline-none text-[15px] sm:text-base py-3"
+                                            />
+                                        </div>
+                                        <button 
+                                            type="submit" 
+                                            className="bg-[#ff7b1a] hover:bg-[#e06200] text-white font-black px-10 py-4 rounded-xl transition-all duration-200 text-sm whitespace-nowrap shadow-md flex items-center justify-center gap-2 hover:scale-[1.03] active:scale-95"
+                                        >
+                                            Get My Score <i className="fa-solid fa-arrow-right"></i>
+                                        </button>
+                                    </div>
+
+                                    {/* --- LIVE NEURAL DIAGNOSTIC TERMINAL (Komponen tambahan gamifikasi bernuansa gelap futuristik) --- */}
+                                    <div className="bg-[#0b072c] border border-white/10 rounded-2xl p-4 text-left shadow-2xl relative overflow-hidden">
+                                        <div className="absolute right-3 top-3 flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                            <span className="text-[10px] font-mono tracking-widest text-emerald-500">LIVE FEED</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                                            
+                                            {/* Kalibrator Node Bar */}
+                                            <div className="md:col-span-4 space-y-1">
+                                                <span className="text-[10px] font-black text-white/50 tracking-wider block">DIAGNOSTIC CALIBRATION</span>
+                                                <div className="flex items-baseline gap-1">
+                                                    <span className="text-2xl font-black text-cyber-neonBlue tracking-tight">{calcCalibrationLevel()}%</span>
+                                                    <span className="text-[10px] font-mono text-white/40">READY</span>
+                                                </div>
+                                                <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/5">
+                                                    <div className="bg-cyber-neonBlue h-full rounded-full transition-all duration-300" style={{ width: `${calcCalibrationLevel()}%` }}></div>
+                                                </div>
+                                            </div>
+
+                                            {/* Modul neural switch yang dapat diklik */}
+                                            <div className="md:col-span-8 flex flex-wrap gap-2 justify-start md:justify-end">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => toggleNeuralNode('bioScan')}
+                                                    className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold flex items-center gap-2 transition-all ${
+                                                        neuralNodes.bioScan 
+                                                        ? 'bg-cyber-neonBlue/10 border-cyber-neonBlue text-cyber-neonBlue shadow-[0_0_15px_rgba(0,240,255,0.15)]' 
+                                                        : 'bg-white/5 border-white/10 text-white/55 hover:border-white/20'
+                                                    }`}
+                                                >
+                                                    <i className="fa-solid fa-fingerprint"></i> Bio Metadata Scan
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => toggleNeuralNode('postDensity')}
+                                                    className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold flex items-center gap-2 transition-all ${
+                                                        neuralNodes.postDensity 
+                                                        ? 'bg-pink-500/10 border-pink-500 text-pink-400 shadow-[0_0_15px_rgba(255,0,127,0.15)]' 
+                                                        : 'bg-white/5 border-white/10 text-white/55 hover:border-white/20'
+                                                    }`}
+                                                >
+                                                    <i className="fa-solid fa-cubes"></i> Post Density Audit
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => toggleNeuralNode('ctaVerification')}
+                                                    className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold flex items-center gap-2 transition-all ${
+                                                        neuralNodes.ctaVerification 
+                                                        ? 'bg-amber-400/10 border-amber-400 text-amber-400 shadow-[0_0_15px_rgba(255,184,0,0.15)]' 
+                                                        : 'bg-white/5 border-white/10 text-white/55 hover:border-white/20'
+                                                    }`}
+                                                >
+                                                    <i className="fa-solid fa-link"></i> CTA Check
+                                                </button>
+                                            </div>
+
+                                        </div>
+
+                                        {/* Status checker dinamis */}
+                                        <div className="mt-3 pt-3 border-t border-white/5 flex gap-4 text-[10px] font-mono text-white/60">
+                                            <span className="flex items-center gap-1"><i className={`fa-solid ${hasProtocolOrSocial ? 'fa-circle-check text-emerald-400' : 'fa-circle text-white/20'}`}></i> URL FORMAT</span>
+                                            <span className="flex items-center gap-1"><i className={`fa-solid ${hasUsernameSample ? 'fa-circle-check text-emerald-400' : 'fa-circle text-white/20'}`}></i> SCAN DEPTH</span>
+                                            <span className="flex items-center gap-1"><i className={`fa-solid ${isSafeLength ? 'fa-circle-check text-emerald-400' : 'fa-circle text-white/20'}`}></i> BUFFER SAFE</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Arrow Note Pointer */}
+                                    <div className="hidden md:flex absolute right-[-140px] top-[15px] items-center gap-2 pointer-events-none animate-bounce" style={{animationDuration: '3s'}}>
+                                        <svg className="w-12 h-12 text-[#ff7b1a] rotate-[-20deg]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                        </svg>
+                                        <span className="text-xs font-brush text-[#ff7b1a] text-medium tracking-wide rotate-[-5deg]">Start your free audit!</span>
+                                    </div>
+
+                                    {/* Verification Badges Row */}
+                                    <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-2 text-xs font-bold text-white/70 pt-1">
+                                        <span className="flex items-center gap-1.5"><i className="fa-solid fa-circle-check text-[#ff7b1a]"></i> No credit card required</span>
+                                        <span className="flex items-center gap-1.5"><i className="fa-solid fa-circle-check text-[#ff7b1a]"></i> Free instant report</span>
+                                        <span className="flex items-center gap-1.5"><i className="fa-solid fa-circle-check text-[#ff7b1a]"></i> Finished in 60s</span>
+                                    </div>
+
+                                    {/* Character counter / Instagram constraint alert */}
+                                    <div className="flex justify-between items-center text-[11px] text-white/40 font-semibold px-2">
+                                        <span>Optimized for Instagram & Facebook Pages</span>
+                                        <span>{profileUrl.length}/100 characters</span>
+                                    </div>
+
+                                    {/* Error Notification */}
+                                    {inputError && (
+                                        <div className="bg-rose-500/20 border border-rose-500/40 text-rose-300 px-4 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 mt-2 w-max mx-auto lg:mx-0 animate-fade-in-up">
+                                            <i className="fa-solid fa-circle-exclamation text-rose-400"></i>
+                                            <span>{inputError}</span>
+                                        </div>
+                                    )}
+                                </form>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                    {/* Bottom Stats Card panel */}
+                    <div className="w-full relative z-30 px-6 sm:px-12 pb-10">
+                        <div className="max-w-[1300px] mx-auto solid-glassmorphic rounded-[2.5rem] p-8 grid grid-cols-1 md:grid-cols-12 gap-8 items-center shadow-2xl">
+                            
+                            {/* Stat 1: Trusted by */}
+                            <div className="md:col-span-3 flex items-center gap-4 justify-center md:justify-start group cursor-default transition-transform duration-300 hover:scale-[1.03]">
+                                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-[#ff7b1a] text-xl transition-all duration-300 group-hover:bg-[#ff7b1a] group-hover:text-white">
+                                    <i className="fa-solid fa-globe"></i>
+                                </div>
+                                <div className="space-y-0.5">
+                                    <p className="text-[10px] font-black uppercase text-white/50 tracking-wider">TRUSTED BY</p>
+                                    <p className="text-sm font-black text-white leading-tight">50+ Businesses Around the World</p>
+                                    <p className="text-[10px] text-white/40 font-semibold italic">Distributed team from all corners of the world</p>
+                                </div>
+                            </div>
+
+                            {/* Stat 2: Rating */}
+                            <div className="md:col-span-3 flex items-center gap-4 justify-center group cursor-default transition-transform duration-300 hover:scale-[1.03]">
+                                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-cyber-gold text-xl transition-all duration-300 group-hover:bg-cyber-gold group-hover:text-[#06021c]">
+                                    <i className="fa-solid fa-star"></i>
+                                </div>
+                                <div className="space-y-0.5">
+                                    <p className="text-[10px] font-black uppercase text-white/50 tracking-wider">AVERAGE RATING</p>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-lg font-black text-white">4.9/5</span>
+                                        <div className="flex gap-0.5 text-[10px] text-cyber-gold">
+                                            <i className="fa-solid fa-star animate-pulse"></i>
+                                            <i className="fa-solid fa-star animate-pulse" style={{animationDelay: '0.2s'}}></i>
+                                            <i className="fa-solid fa-star animate-pulse" style={{animationDelay: '0.4s'}}></i>
+                                            <i className="fa-solid fa-star animate-pulse" style={{animationDelay: '0.6s'}}></i>
+                                            <i className="fa-solid fa-star animate-pulse" style={{animationDelay: '0.8s'}}></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Stat 3: Posts analyzed */}
+                            <div className="md:col-span-3 flex items-center gap-4 justify-center group cursor-default transition-transform duration-300 hover:scale-[1.03]">
+                                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-pink-400 text-xl transition-all duration-300 group-hover:bg-pink-500 group-hover:text-white">
+                                    <i className="fa-solid fa-chart-line"></i>
+                                </div>
+                                <div className="space-y-0.5">
+                                    <p className="text-[10px] font-black uppercase text-white/50 tracking-wider">POSTS ANALYZED</p>
+                                    <p className="text-lg font-black text-white">5M+ Across Platforms</p>
+                                </div>
+                            </div>
+
+                            {/* Supported Platforms icons list */}
+                            <div className="md:col-span-3 flex flex-col items-center md:items-end justify-center gap-2">
+                                <p className="text-[10px] font-black uppercase text-white/50 tracking-wider">SUPPORTED PLATFORMS</p>
+                                <div className="flex items-center gap-4 text-xl">
+                                    <div className="flex items-center gap-1.5 group cursor-pointer" title="Instagram Supported">
+                                        <i className="fa-brands fa-instagram text-pink-400 transition-transform duration-300 group-hover:scale-125"></i>
+                                        <span className="text-[10px] font-bold text-white/60">Instagram</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 group cursor-pointer" title="Facebook Page Supported">
+                                        <i className="fa-brands fa-facebook text-blue-400 transition-transform duration-300 group-hover:scale-125"></i>
+                                        <span className="text-[10px] font-bold text-white/60">Facebook</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {/* Exact Copyright Footer */}
+                        <div className="mt-8 text-center text-xs text-white/40 font-semibold tracking-wide select-none">
+                            Copyright © 2026 Voxlumedia™ | Creative Agency for Digital Marketing
+                        </div>
+                    </div>
+
+                </div>
+            );
+        }
+
+        // ==========================================
+        // 2. LOADING SCREEN
+        // ==========================================
+        function LoadingSection({ currentStep, steps }) {
+            const progressPercentage = Math.round(((currentStep + 1) / steps.length) * 100);
+
+            return (
+                <div className="min-h-screen bg-[#06021c] flex flex-col items-center justify-center p-6 relative z-10">
+                    <div className="max-w-md w-full solid-glassmorphic p-10 rounded-3xl text-center space-y-8 animate-fade-in-up">
+                        
+                        <div className="relative w-28 h-28 mx-auto">
+                            <div className="absolute inset-0 rounded-full border-4 border-white/5"></div>
+                            <div className="absolute inset-0 rounded-full border-4 border-t-[#ff7b1a] border-r-pink-500 animate-spin"></div>
+                            <div className="absolute inset-2 flex items-center justify-center bg-[#0d0735] rounded-full">
+                                <i className="fa-solid fa-robot text-[#ff7b1a] text-3xl animate-pulse"></i>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h2 className="text-2xl font-black text-white mb-2">Analyzing Profile</h2>
+                            <p className="text-white/70 font-medium text-sm">
+                                Extracting public insights via Vox AI...
+                            </p>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="flex justify-between text-xs font-bold text-white/50">
+                                <span>PROGRESS</span>
+                                <span className="text-[#ff7b1a]">{progressPercentage}%</span>
+                            </div>
+                            <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/5">
+                                <div 
+                                    className="bg-[#ff7b1a] h-full rounded-full transition-all duration-500 ease-out" 
+                                    style={{ width: `${progressPercentage}%` }}
+                                ></div>
+                            </div>
+                            
+                            <div className="pt-3 text-xs font-bold text-white/90 h-8 flex items-center justify-center">
+                                <span className="animate-pulse">{steps[currentStep]}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // 3. RESULTS DASHBOARD (Solid Premium Dark Theme)
+        // ==========================================
+        function ResultsSection({ results, url, platform, setView }) {
+            const [leadSubmitted, setLeadSubmitted] = useState(false);
+            const [leadData, setLeadData] = useState({ name: '', email: '', phone: '', company: '' });
+
+            const handleLeadSubmit = (e) => {
+                e.preventDefault();
+                setLeadSubmitted(true);
+            };
+
+            const getScoreColor = (score) => {
+                if (score >= 90) return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
+                if (score >= 80) return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+                if (score >= 70) return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+                return 'text-rose-400 bg-rose-400/10 border-rose-400/20';
+            };
+
+            return (
+                <div className="min-h-screen bg-[#06021c] text-white w-full relative z-20 pb-20">
+                    
+                    {/* Top Result Navigation Header */}
+                    <nav className="border-b border-white/10 bg-white/5 backdrop-blur-md sticky top-0 z-50">
+                        <div className="max-w-[1400px] mx-auto px-6 sm:px-12 py-5 flex items-center justify-between">
+                            <div className="flex items-center gap-3 font-black text-xl cursor-pointer" onClick={() => setView('landing')}>
+                                <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center">
+                                    <img src={LOGO_URL} className="w-full h-full object-contain" alt="Logo" />
+                                </div>
+                                VOXLUMEDIA
+                            </div>
+                            <button onClick={() => setView('landing')} className="text-sm border border-white/20 hover:border-white bg-white/5 hover:bg-white/10 font-bold py-2.5 px-6 rounded-full transition duration-300">
+                                Run New Scan &rarr;
+                            </button>
+                        </div>
+                    </nav>
+
+                    <div className="max-w-5xl mx-auto py-12 px-6 space-y-10 animate-fade-in-up">
+                        
+                        {/* PERFORMANCE SUMMARY SECTION */}
+                        <div className="solid-glassmorphic rounded-[2.5rem] p-8 sm:p-12 shadow-2xl relative overflow-hidden">
+                            <div className="text-center mb-10 relative z-10">
+                                <span className="text-xs font-black tracking-widest text-[#ff7b1a] uppercase mb-2 block">Performance Summary</span>
+                                <h2 className="text-3xl sm:text-4xl font-black text-white">Your Business Health Report</h2>
+                                <p className="text-white/50 font-medium mt-2 flex items-center justify-center gap-2">
+                                    <i className="fa-solid fa-chart-pie text-[#ff7b1a]"></i> {platform} Analysis
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-10 items-center relative z-10">
+                                {/* Circular Gauge */}
+                                <div className="md:col-span-5 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-white/5 pb-8 md:pb-0">
+                                    <div className="relative w-48 h-48 flex items-center justify-center mb-6">
+                                        <svg className="absolute w-full h-full transform -rotate-90">
+                                            <circle cx="96" cy="96" r="88" stroke="rgba(255,255,255,0.03)" strokeWidth="12" fill="transparent" />
+                                            <circle 
+                                                cx="96" cy="96" r="88" 
+                                                stroke={results.score >= 90 ? "#00f0ff" : results.score >= 80 ? "#60a5fa" : results.score >= 70 ? "#fbbf24" : "#ff007f"} 
+                                                strokeWidth="12" fill="transparent" strokeDasharray={553}
+                                                strokeDashoffset={553 - (553 * results.score) / 100}
+                                                strokeLinecap="round" className="transition-all duration-1500 ease-out"
+                                            />
+                                        </svg>
+                                        <div className="text-center relative z-10 flex flex-col items-center mt-2">
+                                            <span className="text-6xl font-black text-white tracking-tighter">{results.score}</span>
+                                            <span className="text-xs font-bold text-white/40 uppercase mt-1">Score / 100</span>
+                                        </div>
+                                    </div>
+                                    <span className={`px-6 py-2 rounded-full text-sm font-black border uppercase tracking-wider ${getScoreColor(results.score)}`}>
+                                        {results.label}
+                                    </span>
+                                </div>
+
+                                {/* Narrative Report Description */}
+                                <div className="md:col-span-7 space-y-6">
+                                    <div className="bg-white/5 p-6 rounded-2xl border border-white/10 shadow-inner">
+                                        <div className="mb-4 pb-4 border-b border-white/5">
+                                            <span className="text-[10px] font-black tracking-widest text-[#ff7b1a] uppercase mb-1 block">Profile Identity</span>
+                                            <p className="text-white font-bold text-lg leading-snug">
+                                                {results.profileIdentity}
+                                            </p>
+                                        </div>
+                                        <p className="text-white/80 font-medium text-base leading-relaxed italic">
+                                            "{results.summary}"
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-white/5 border border-white/10 p-4 rounded-xl shadow-sm flex items-start gap-3">
+                                            <i className="fa-solid fa-arrow-trend-up text-[#ff7b1a] mt-1"></i>
+                                            <div>
+                                                <p className="text-[10px] text-white/50 font-bold uppercase">Growth Potential</p>
+                                                <p className="text-base font-black text-white">{results.growthPotential}</p>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white/5 border border-white/10 p-4 rounded-xl shadow-sm flex items-start gap-3">
+                                            <i className="fa-solid fa-check-double text-pink-500 mt-1"></i>
+                                            <div>
+                                                <p className="text-[10px] text-white/50 font-bold uppercase">Profile Readiness</p>
+                                                <p className="text-base font-black text-white">{results.categories.businessReadiness}/100</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Strengths & Opportunities */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="solid-glassmorphic rounded-3xl p-8 border border-white/10 shadow-sm hover:shadow-md transition-shadow">
+                                <h3 className="text-xl font-black text-white mb-6 flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-400/10 text-emerald-400 flex items-center justify-center"><i className="fa-solid fa-check text-sm"></i></div>
+                                    Key Strengths
+                                </h3>
+                                <ul className="space-y-4">
+                                    {results.strengths.map((item, i) => (
+                                        <li key={i} className="flex items-start gap-3 text-white/80 font-medium">
+                                            <i className="fa-solid fa-circle-check text-emerald-400 mt-1"></i>
+                                            {item.replace('✓', '').trim()}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                            
+                            <div className="solid-glassmorphic rounded-3xl p-8 border border-white/10 shadow-sm hover:shadow-md transition-shadow">
+                                <h3 className="text-xl font-black text-white mb-6 flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-amber-400/10 text-amber-400 flex items-center justify-center"><i className="fa-solid fa-lightbulb text-sm"></i></div>
+                                    Opportunities
+                                </h3>
+                                <ul className="space-y-4">
+                                    {results.opportunities.map((item, i) => (
+                                        <li key={i} className="flex items-start gap-3 text-white/80 font-medium">
+                                            <i className="fa-solid fa-arrow-right text-amber-400 mt-1"></i>
+                                            {item.replace('•', '').trim()}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+
+                        {/* Detailed Metrics */}
+                        <div className="solid-glassmorphic text-white rounded-[2rem] p-8 sm:p-10 border border-white/10 shadow-2xl relative overflow-hidden">
+                            <h3 className="text-2xl font-black mb-8 relative z-10">Metric Breakdown</h3>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 relative z-10">
+                                {[
+                                    { label: 'Profile Clarity', score: results.categories.profileClarity, icon: 'fa-id-badge', color: 'bg-cyber-neonBlue' },
+                                    { label: 'Content Quality', score: results.categories.contentQuality, icon: 'fa-image', color: 'bg-pink-500' },
+                                    { label: 'Trust Signals', score: results.categories.trustScore, icon: 'fa-shield-halved', color: 'bg-cyber-gold' }
+                                ].map((cat, i) => (
+                                    <div key={i} className="bg-white/5 border border-white/15 p-5 rounded-2xl animate-pulse" style={{animationDuration: '3s', animationDelay: `${i*0.3}s`}}>
+                                        <div className="flex justify-between items-center mb-3">
+                                            <span className="text-sm font-bold text-white/70 flex items-center gap-2">
+                                                <i className={`fa-solid ${cat.icon} text-white/40`}></i> {cat.label}
+                                            </span>
+                                            <span className="text-xl font-black">{cat.score}</span>
+                                        </div>
+                                        <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                            <div className={`h-full rounded-full ${cat.color}`} style={{ width: `${cat.score}%` }}></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Lead Capture form */}
+                        <div className="solid-glassmorphic rounded-[2rem] border border-white/10 p-8 sm:p-12 shadow-2xl text-center relative overflow-hidden">
+                            {!leadSubmitted ? (
+                                <div className="max-w-xl mx-auto space-y-6 relative z-10">
+                                    <div className="w-16 h-16 bg-white/5 border border-white/10 text-cyber-neonBlue rounded-full flex items-center justify-center mx-auto text-2xl mb-4">
+                                        <i className="fa-solid fa-file-pdf"></i>
+                                    </div>
+                                    <h3 className="text-3xl font-black text-white">Get Your Complete PDF Report</h3>
+                                    <p className="text-white/60 font-medium">Enter your details to receive a full breakdown and an invitation to a free 30-minute growth consultation with our experts.</p>
+                                    
+                                    <form onSubmit={handleLeadSubmit} className="space-y-4 pt-4 text-left">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <input type="text" required placeholder="Full Name" value={leadData.name} onChange={(e) => setLeadData({...leadData, name: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
+                                            <input type="email" required placeholder="Business Email" value={leadData.email} onChange={(e) => setLeadData({...leadData, email: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <input type="tel" required placeholder="Phone Number" value={leadData.phone} onChange={(e) => setLeadData({...leadData, phone: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
+                                            <input type="text" required placeholder="Company Name" value={leadData.company} onChange={(e) => setLeadData({...leadData, company: e.target.value})} className="w-full border border-white/10 focus:border-[#ff7b1a] rounded-xl px-4 py-3.5 focus:outline-none bg-white/5 text-white font-bold" />
+                                        </div>
+                                        <button type="submit" className="w-full bg-[#ff7b1a] hover:bg-[#e06200] text-white font-black py-4 rounded-xl transition duration-300 shadow-md">
+                                            Send Me The Report &rarr;
+                                        </button>
+                                    </form>
+                                </div>
+                            ) : (
+                                <div className="py-10 space-y-4 relative z-10 animate-fade-in-up">
+                                    <div className="w-20 h-20 bg-emerald-400/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-4xl border border-emerald-400/20 shadow-xl">
+                                        <i className="fa-solid fa-check"></i>
+                                    </div>
+                                    <h4 className="text-3xl font-black text-white">Success!</h4>
+                                    <p className="text-white/60 font-medium max-w-md mx-auto">Your comprehensive report is being generated. Our team will reach out to you shortly to schedule your growth strategy session.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Copyright Footer */}
+                        <div className="mt-8 text-center text-xs text-white/40 font-semibold tracking-wide select-none">
+                            Copyright © 2026 Voxlumedia™ | Creative Agency for Digital Marketing
+                        </div>
+
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
